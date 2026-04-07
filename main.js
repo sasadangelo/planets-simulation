@@ -124,11 +124,11 @@ function setupLights() {
 // ============================================
 
 function createTank() {
-    console.log('🏗️ Creazione vasca...');
+    console.log('🏗️ Creazione vasca cilindrica...');
 
     const tankGroup = new THREE.Group();
 
-    // Materiale trasparente per le pareti
+    // Materiale trasparente per la parete cilindrica
     const wallMaterial = new THREE.MeshPhysicalMaterial({
         color: 0x1e88e5,
         transparent: true,
@@ -145,46 +145,50 @@ function createTank() {
         linewidth: 2
     });
 
-    // Dimensioni vasca
-    const width = TANK_SIZE;
+    const radius = TANK_SIZE / 2;
     const height = TANK_SIZE;
-    const depth = TANK_SIZE;
 
-    // Crea le 6 pareti
-    const walls = [
-        // Fronte
-        { pos: [0, 0, depth / 2], rot: [0, 0, 0] },
-        // Retro
-        { pos: [0, 0, -depth / 2], rot: [0, Math.PI, 0] },
-        // Sinistra
-        { pos: [-width / 2, 0, 0], rot: [0, Math.PI / 2, 0] },
-        // Destra
-        { pos: [width / 2, 0, 0], rot: [0, -Math.PI / 2, 0] },
-        // Sopra
-        { pos: [0, height / 2, 0], rot: [Math.PI / 2, 0, 0] },
-        // Sotto
-        { pos: [0, -height / 2, 0], rot: [-Math.PI / 2, 0, 0] }
-    ];
+    // Crea cilindro trasparente (parete laterale)
+    const cylinderGeometry = new THREE.CylinderGeometry(radius, radius, height, 32, 1, true);
+    const cylinderMesh = new THREE.Mesh(cylinderGeometry, wallMaterial);
+    tankGroup.add(cylinderMesh);
 
-    walls.forEach(wall => {
-        const geometry = new THREE.PlaneGeometry(width, height);
-        const mesh = new THREE.Mesh(geometry, wallMaterial);
-        mesh.position.set(...wall.pos);
-        mesh.rotation.set(...wall.rot);
-        tankGroup.add(mesh);
+    // Aggiungi bordi al cilindro
+    const cylinderEdges = new THREE.EdgesGeometry(cylinderGeometry);
+    const cylinderLines = new THREE.LineSegments(cylinderEdges, edgeMaterial);
+    tankGroup.add(cylinderLines);
 
-        // Aggiungi bordi
-        const edges = new THREE.EdgesGeometry(geometry);
-        const line = new THREE.LineSegments(edges, edgeMaterial);
-        line.position.set(...wall.pos);
-        line.rotation.set(...wall.rot);
-        tankGroup.add(line);
-    });
+    // Crea base e coperchio (cerchi)
+    const capGeometry = new THREE.CircleGeometry(radius, 32);
+
+    // Base (sotto)
+    const bottomCap = new THREE.Mesh(capGeometry, wallMaterial);
+    bottomCap.rotation.x = -Math.PI / 2;
+    bottomCap.position.y = -height / 2;
+    tankGroup.add(bottomCap);
+
+    const bottomEdges = new THREE.EdgesGeometry(capGeometry);
+    const bottomLines = new THREE.LineSegments(bottomEdges, edgeMaterial);
+    bottomLines.rotation.x = -Math.PI / 2;
+    bottomLines.position.y = -height / 2;
+    tankGroup.add(bottomLines);
+
+    // Coperchio (sopra)
+    const topCap = new THREE.Mesh(capGeometry, wallMaterial);
+    topCap.rotation.x = Math.PI / 2;
+    topCap.position.y = height / 2;
+    tankGroup.add(topCap);
+
+    const topEdges = new THREE.EdgesGeometry(capGeometry);
+    const topLines = new THREE.LineSegments(topEdges, edgeMaterial);
+    topLines.rotation.x = Math.PI / 2;
+    topLines.position.y = height / 2;
+    tankGroup.add(topLines);
 
     tank = tankGroup;
     scene.add(tank);
 
-    console.log('✅ Vasca creata');
+    console.log('✅ Vasca cilindrica creata');
 }
 
 // ============================================
@@ -412,10 +416,14 @@ function animate() {
     // Aggiorna controlli
     controls.update();
 
-    // Ruota il sole (più veloce e visibile)
+    // Ruota il sole - la sua rotazione genera il vortice nel fluido
     if (sphere) {
-        sphere.rotation.y += 0.03 * rotationSpeed;
-        sphere.rotation.x += 0.015 * rotationSpeed;
+        // Velocità angolare del Sole (radianti per frame)
+        const sunAngularVelocity = 0.02 * rotationSpeed;
+        sphere.rotation.y += sunAngularVelocity;
+
+        // Salva la velocità angolare per calcolare il trascinamento del fluido
+        sphere.userData.angularVelocity = sunAngularVelocity;
     }
 
     // Aggiorna fisica della Terra (trascinata dal vortice)
@@ -443,37 +451,43 @@ function animate() {
         const dx = x - sphere.position.x;
         const dy = y - sphere.position.y;
         const dz = z - sphere.position.z;
-        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        const safeDist = Math.max(distance, 0.1);
+        const radiusXZ = Math.sqrt(dx * dx + dz * dz);
+        const distance3D = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const safeDist = Math.max(distance3D, 0.1);
+        const safeRadiusXZ = Math.max(radiusXZ, 0.1);
 
-        // Forza del vortice (come per le particelle ma più forte per la Terra)
-        const vortexStrength = Math.max(0, 1 - distance / (TANK_SIZE * 0.8));
-        const powerFactor = Math.pow(vortexStrength, 0.5);
+        // Forza del vortice causata dalla rotazione del Sole
+        const vortexStrength = Math.max(0, 1 - distance3D / (TANK_SIZE * 0.7));
+        const powerFactor = Math.pow(vortexStrength, 0.8);
 
-        // Calcola angolo per forza tangenziale
+        // Calcola angolo sul piano XZ
         const angle = Math.atan2(dz, dx);
 
-        // Forza tangenziale (rivoluzione) - più forte per la Terra
-        const tangentSpeed = powerFactor * rotationSpeed * 0.12;
+        // Velocità angolare del Sole
+        const sunAngularVelocity = sphere.userData.angularVelocity || 0.02 * rotationSpeed;
+
+        // VELOCITÀ TANGENZIALE: la Terra è trascinata dal vortice del Sole
+        const tangentSpeed = sunAngularVelocity * radiusXZ * powerFactor * 1.2;
         const tangentX = -Math.sin(angle) * tangentSpeed;
         const tangentZ = Math.cos(angle) * tangentSpeed;
 
-        // Forza centripeta (mantiene l'orbita)
-        const centripetalForce = powerFactor * rotationSpeed * 0.03;
+        // Forza centripeta (mantiene l'orbita stabile)
+        const centripetalForce = powerFactor * rotationSpeed * 0.015;
         const centripetalX = -dx / safeDist * centripetalForce;
         const centripetalZ = -dz / safeDist * centripetalForce;
 
-        // Componente verticale (spirale leggera)
-        const verticalForce = powerFactor * rotationSpeed * 0.02 * Math.sin(time * 2 + angle);
+        // Tendenza naturale verso l'eclittica (più debole)
+        // La Terra tende gradualmente verso y=0 per effetto del disco di particelle
+        const eclipticForce = -dy * 0.01;
 
         // Aggiorna velocità lineare
         earthVelocity.x += tangentX + centripetalX;
-        earthVelocity.y += verticalForce;
+        earthVelocity.y += eclipticForce;
         earthVelocity.z += tangentZ + centripetalZ;
 
-        // Attrito
+        // Attrito uniforme
         earthVelocity.x *= 0.98;
-        earthVelocity.y *= 0.98;
+        earthVelocity.y *= 0.96; // Leggermente più attrito verticale
         earthVelocity.z *= 0.98;
 
         // Aggiorna posizione
@@ -481,19 +495,33 @@ function animate() {
         y += earthVelocity.y;
         z += earthVelocity.z;
 
-        // Mantieni dentro la vasca
-        const halfSize = TANK_SIZE / 2 - 1;
-        if (x < -halfSize || x > halfSize) {
-            x = Math.max(-halfSize, Math.min(halfSize, x));
-            earthVelocity.x *= -0.7;
+        // Mantieni dentro la vasca cilindrica
+        const tankRadius = TANK_SIZE / 2 - 1;
+        const tankHeight = TANK_SIZE / 2 - 1;
+
+        // Collisione con parete cilindrica
+        const distFromCenter = Math.sqrt(x * x + z * z);
+        if (distFromCenter > tankRadius) {
+            const angle = Math.atan2(z, x);
+            x = Math.cos(angle) * tankRadius;
+            z = Math.sin(angle) * tankRadius;
+
+            // Rimbalzo
+            const radialVelX = earthVelocity.x * Math.cos(angle);
+            const radialVelZ = earthVelocity.z * Math.sin(angle);
+            const radialVel = radialVelX + radialVelZ;
+
+            earthVelocity.x -= 1.7 * radialVel * Math.cos(angle);
+            earthVelocity.z -= 1.7 * radialVel * Math.sin(angle);
         }
-        if (y < -halfSize || y > halfSize) {
-            y = Math.max(-halfSize, Math.min(halfSize, y));
+
+        // Collisione con base e coperchio
+        if (y < -tankHeight) {
+            y = -tankHeight;
             earthVelocity.y *= -0.7;
-        }
-        if (z < -halfSize || z > halfSize) {
-            z = Math.max(-halfSize, Math.min(halfSize, z));
-            earthVelocity.z *= -0.7;
+        } else if (y > tankHeight) {
+            y = tankHeight;
+            earthVelocity.y *= -0.7;
         }
 
         earth.position.set(x, y, z);
@@ -527,93 +555,97 @@ function animate() {
 // ============================================
 
 function updateParticles() {
-    if (!particleSystem) return;
+    if (!particleSystem || !sphere) return;
 
     const positions = particleSystem.geometry.attributes.position.array;
     const velocities = particleSystem.userData.velocities;
     const time = Date.now() * 0.001;
+
+    // Velocità angolare del Sole (radianti per frame)
+    const sunAngularVelocity = sphere.userData.angularVelocity || 0.02 * rotationSpeed;
 
     for (let i = 0; i < positions.length; i += 3) {
         let x = positions[i];
         let y = positions[i + 1];
         let z = positions[i + 2];
 
-        // Calcola distanza dalla sfera
+        // Calcola distanza dalla sfera in 3D
         const dx = x - sphere.position.x;
         const dy = y - sphere.position.y;
         const dz = z - sphere.position.z;
-        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const distance3D = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const radiusXZ = Math.sqrt(dx * dx + dz * dz);
 
         // Evita divisione per zero
-        const safeDist = Math.max(distance, 0.1);
+        const safeDist = Math.max(distance3D, 0.1);
+        const safeRadiusXZ = Math.max(radiusXZ, 0.1);
 
-        // Forza del vortice (molto più forte!)
-        const vortexStrength = Math.max(0, 1 - distance / (TANK_SIZE * 0.8));
-        const powerFactor = Math.pow(vortexStrength, 0.5); // Curva più dolce
+        // Forza del vortice basata sulla distanza dal Sole
+        const vortexStrength = Math.max(0, 1 - distance3D / (TANK_SIZE * 0.7));
+        const powerFactor = Math.pow(vortexStrength, 0.8);
 
-        // Calcola velocità tangenziale (rotazione attorno all'asse Y)
+        // Calcola angolo sul piano XZ
         const angle = Math.atan2(dz, dx);
-        const radius = Math.sqrt(dx * dx + dz * dz);
 
-        // Forza tangenziale molto più forte
-        const tangentSpeed = powerFactor * rotationSpeed * 0.15;
+        // VELOCITÀ TANGENZIALE: proporzionale alla velocità angolare del Sole
+        // v = ω × r (velocità tangenziale = velocità angolare × raggio sul piano XZ)
+        const tangentSpeed = sunAngularVelocity * radiusXZ * powerFactor;
         const tangentX = -Math.sin(angle) * tangentSpeed;
         const tangentZ = Math.cos(angle) * tangentSpeed;
 
-        // Forza centripeta (attira verso il centro)
-        const centripetalForce = powerFactor * rotationSpeed * 0.05;
+        // Forza centripeta debole (mantiene le particelle in orbita)
+        const centripetalForce = powerFactor * rotationSpeed * 0.01;
         const centripetalX = -dx / safeDist * centripetalForce;
         const centripetalZ = -dz / safeDist * centripetalForce;
 
-        // Componente verticale (spirale su e giù)
-        const verticalForce = powerFactor * rotationSpeed * 0.08 * Math.sin(time * 2 + angle * 3);
-
-        // Aggiungi turbolenza
-        const turbulence = 0.02 * rotationSpeed;
-        const turbX = (Math.sin(time * 3 + i * 0.1) - 0.5) * turbulence;
-        const turbY = (Math.sin(time * 2 + i * 0.2) - 0.5) * turbulence;
-        const turbZ = (Math.sin(time * 4 + i * 0.15) - 0.5) * turbulence;
+        // Turbolenza 3D per movimento naturale
+        const turbulence = 0.008 * rotationSpeed;
+        const turbX = (Math.sin(time * 2 + i * 0.1) - 0.5) * turbulence;
+        const turbY = (Math.sin(time * 1.5 + i * 0.2) - 0.5) * turbulence;
+        const turbZ = (Math.sin(time * 2.5 + i * 0.15) - 0.5) * turbulence;
 
         // Aggiorna velocità con tutte le forze
         velocities[i] += tangentX + centripetalX + turbX;
-        velocities[i + 1] += verticalForce + turbY;
+        velocities[i + 1] += turbY; // Solo turbolenza verticale, nessuna forzatura
         velocities[i + 2] += tangentZ + centripetalZ + turbZ;
 
-        // Applica attrito più leggero per mantenere il movimento
-        velocities[i] *= 0.95;
-        velocities[i + 1] *= 0.95;
-        velocities[i + 2] *= 0.95;
+        // Attrito uniforme
+        velocities[i] *= 0.98;
+        velocities[i + 1] *= 0.98;
+        velocities[i + 2] *= 0.98;
 
         // Aggiorna posizione
         x += velocities[i];
         y += velocities[i + 1];
         z += velocities[i + 2];
 
-        // Gestione collisioni con le pareti (rimbalzo morbido)
-        const halfSize = TANK_SIZE / 2 - 0.3;
+        // Gestione collisioni con vasca cilindrica
+        const tankRadius = TANK_SIZE / 2 - 0.3;
+        const tankHeight = TANK_SIZE / 2 - 0.3;
 
-        if (x < -halfSize) {
-            x = -halfSize;
-            velocities[i] = Math.abs(velocities[i]) * 0.7;
-        } else if (x > halfSize) {
-            x = halfSize;
-            velocities[i] = -Math.abs(velocities[i]) * 0.7;
+        // Collisione con parete cilindrica
+        const distFromCenter = Math.sqrt(x * x + z * z);
+        if (distFromCenter > tankRadius) {
+            const angle = Math.atan2(z, x);
+            x = Math.cos(angle) * tankRadius;
+            z = Math.sin(angle) * tankRadius;
+
+            // Rimbalzo: inverti componente radiale della velocità
+            const radialVelX = velocities[i] * Math.cos(angle);
+            const radialVelZ = velocities[i + 2] * Math.sin(angle);
+            const radialVel = radialVelX + radialVelZ;
+
+            velocities[i] -= 1.7 * radialVel * Math.cos(angle);
+            velocities[i + 2] -= 1.7 * radialVel * Math.sin(angle);
         }
 
-        if (y < -halfSize) {
-            y = -halfSize;
+        // Collisione con base e coperchio
+        if (y < -tankHeight) {
+            y = -tankHeight;
             velocities[i + 1] = Math.abs(velocities[i + 1]) * 0.7;
-        } else if (y > halfSize) {
-            y = halfSize;
+        } else if (y > tankHeight) {
+            y = tankHeight;
             velocities[i + 1] = -Math.abs(velocities[i + 1]) * 0.7;
-        }
-
-        if (z < -halfSize) {
-            z = -halfSize;
-            velocities[i + 2] = Math.abs(velocities[i + 2]) * 0.7;
-        } else if (z > halfSize) {
-            z = halfSize;
-            velocities[i + 2] = -Math.abs(velocities[i + 2]) * 0.7;
         }
 
         positions[i] = x;
