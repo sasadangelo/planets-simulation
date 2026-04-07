@@ -1,0 +1,29 @@
+{
+    "name": "planet-theory-vortex-simulation",
+    "version": "1.0.0",
+    "description": "Simulazione 3D di un fluido in una vasca con sfera rotante che genera un vortice planetario",
+    "main": "index.html",
+    "scripts": {
+        "start": "python3 -m http.server 8000",
+        "start-py2": "python -m SimpleHTTPServer 8000",
+        "start-node": "npx http-server -p 8000 -c-1"
+    },
+    "keywords": [
+        "three.js",
+        "3d",
+        "simulation",
+        "fluid",
+        "vortex",
+        "particles",
+        "webgl",
+        "physics"
+    ],
+    "author": "Planet Theory",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/sasadangelo/planet-theory"
+    },
+    "devDependencies": {},
+    "dependencies": {}
+}
