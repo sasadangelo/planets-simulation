@@ -419,7 +419,8 @@ function animate() {
     // Ruota il sole - la sua rotazione genera il vortice nel fluido
     if (sphere) {
         // Velocità angolare del Sole (radianti per frame)
-        const sunAngularVelocity = 0.02 * rotationSpeed;
+        // Simuliamo 1 rotazione = 25 "giorni" (frame)
+        const sunAngularVelocity = (Math.PI * 2 / 25) * rotationSpeed;
         sphere.rotation.y += sunAngularVelocity;
 
         // Salva la velocità angolare per calcolare il trascinamento del fluido
@@ -467,9 +468,11 @@ function animate() {
         const sunAngularVelocity = sphere.userData.angularVelocity || 0.02 * rotationSpeed;
 
         // VELOCITÀ TANGENZIALE: la Terra è trascinata dal vortice del Sole
-        const tangentSpeed = sunAngularVelocity * radiusXZ * powerFactor * 1.2;
-        const tangentX = -Math.sin(angle) * tangentSpeed;
-        const tangentZ = Math.cos(angle) * tangentSpeed;
+        // Rotazione nello stesso verso del Sole
+        // Molto più lenta perché trascinata dal fluido lento
+        const tangentSpeed = sunAngularVelocity * radiusXZ * powerFactor * 0.025;
+        const tangentX = Math.sin(angle) * tangentSpeed;
+        const tangentZ = -Math.cos(angle) * tangentSpeed;
 
         // Forza centripeta (mantiene l'orbita stabile)
         const centripetalForce = powerFactor * rotationSpeed * 0.015;
@@ -589,17 +592,19 @@ function updateParticles() {
 
         // VELOCITÀ TANGENZIALE: proporzionale alla velocità angolare del Sole
         // v = ω × r (velocità tangenziale = velocità angolare × raggio sul piano XZ)
-        const tangentSpeed = sunAngularVelocity * radiusXZ * powerFactor;
-        const tangentX = -Math.sin(angle) * tangentSpeed;
-        const tangentZ = Math.cos(angle) * tangentSpeed;
+        // Rotazione nello stesso verso del Sole (antiorario guardando dall'alto)
+        // Ridotta per essere più lenta del Sole
+        const tangentSpeed = sunAngularVelocity * radiusXZ * powerFactor * 0.1;
+        const tangentX = Math.sin(angle) * tangentSpeed;
+        const tangentZ = -Math.cos(angle) * tangentSpeed;
 
         // Forza centripeta debole (mantiene le particelle in orbita)
         const centripetalForce = powerFactor * rotationSpeed * 0.01;
         const centripetalX = -dx / safeDist * centripetalForce;
         const centripetalZ = -dz / safeDist * centripetalForce;
 
-        // Turbolenza 3D per movimento naturale
-        const turbulence = 0.008 * rotationSpeed;
+        // Turbolenza 3D aumentata per evitare linee
+        const turbulence = 0.015 * rotationSpeed;
         const turbX = (Math.sin(time * 2 + i * 0.1) - 0.5) * turbulence;
         const turbY = (Math.sin(time * 1.5 + i * 0.2) - 0.5) * turbulence;
         const turbZ = (Math.sin(time * 2.5 + i * 0.15) - 0.5) * turbulence;
