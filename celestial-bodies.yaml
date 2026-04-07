@@ -1,0 +1,78 @@
+# Configurazione dei corpi celesti per la simulazione del vortice etereo
+
+sun:
+  type: star
+  name: "Sole"
+  radius: 2.0
+  mass: 1.989e30 # kg (massa reale del Sole)
+  rotationPeriod: 25 # giorni (periodo di rotazione equatoriale)
+  color: 0xffaa33
+  emissive: 0xff6b35
+  emissiveIntensity: 0.3
+  position:
+    x: 0
+    y: 0
+    z: 0
+  texture:
+    type: procedural
+    baseColors:
+      - "#ffdd44"
+      - "#ff8833"
+      - "#ff4422"
+    sunspots: 30
+    brightSpots: 50
+
+earth:
+  type: planet
+  name: "Terra"
+  radius: 0.6
+  mass: 5.972e24 # kg (massa reale della Terra)
+  orbitalRadius: 4.0 # distanza dal Sole nella simulazione
+  orbitalPeriod: 365 # giorni (periodo orbitale)
+  rotationPeriod: 1 # giorni (periodo di rotazione)
+  axialTilt: 23.5 # gradi (inclinazione asse terrestre)
+  color: 0x1e88e5
+  emissive: 0x0066ff
+  emissiveIntensity: 0.2
+  glowColor: 0x4fc3f7
+  glowOpacity: 0.3
+  position:
+    x: 4.0
+    y: 0
+    z: 0
+  velocity:
+    x: 0
+    y: 0
+    z: 0.08
+  texture:
+    type: procedural
+    oceanColor: "#1e88e5"
+    landColor: "#4caf50"
+    cloudColor: "rgba(255, 255, 255, 0.6)"
+    continents: 15
+    clouds: 20
+
+aether:
+  particleCount: 8000
+  particleSize: 0.12
+  particleColor:
+    hue: 0.55
+    saturation: 0.8
+    lightnessMin: 0.5
+    lightnessMax: 0.8
+  turbulence: 0.015 # turbolenza per distribuire le particelle
+  viscosity: 0.98 # attrito (0-1, più alto = meno attrito)
+  dragCoefficient: 0.1 # quanto il fluido trascina le particelle (moltiplicatore)
+  planetDragCoefficient: 0.025 # quanto il fluido trascina i pianeti
+  centripetalForce: 0.01 # forza centripeta per le particelle
+  planetCentripetalForce: 0.015 # forza centripeta per i pianeti
+
+tank:
+  type: cylinder
+  radius: 5.0
+  height: 10.0
+  color: 0x1e88e5
+  opacity: 0.15
+  edgeColor: 0x4fc3f7
+
+# Made with Bob
